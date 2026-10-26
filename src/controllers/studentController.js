@@ -1,5 +1,8 @@
 const Student = require('../models/studentModel');
 
+const escapeRegex = (value) =>
+  value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 
 // ================= CREATE STUDENT =================
 exports.createStudent = async (req, res) => {
@@ -68,7 +71,10 @@ exports.getStudents = async (req, res) => {
     // Search & Filter
     // -----------------------------
 
-    const search = req.query.search?.trim() || "";
+    const search =
+      req.query.search?.trim() ||
+      req.query.q?.trim() ||
+      "";
     const gender = req.query.gender?.trim() || "";
 
     const filter = {};
@@ -165,6 +171,40 @@ exports.getStudents = async (req, res) => {
   } catch (error) {
     console.error("Get students error:", error);
 
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+
+// ================= GET FIRST NAME SUGGESTIONS =================
+exports.getFirstNames = async (req, res) => {
+  try {
+    const q = (req.query.q || req.query.search || "").trim();
+
+    const filter = q
+      ? {
+          first_name: {
+            $regex: `^${escapeRegex(q)}`,
+            $options: "i",
+          },
+        }
+      : {};
+
+    const names = await Student.distinct("first_name", filter);
+
+    const data = names
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b))
+      .slice(0, 10);
+
+    res.status(200).json({
+      success: true,
+      data,
+    });
+  } catch (error) {
     res.status(500).json({
       success: false,
       message: error.message,
